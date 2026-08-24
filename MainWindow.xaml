@@ -3,11 +3,16 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Relay"
+        xmlns:vm="clr-namespace:Relay.ViewModels"
         mc:Ignorable="d"
-        Title="Apps điều khiển relay" Height="450" Width="520"
-        Icon="app_icon.ico"
-        WindowStartupLocation="CenterScreen" ResizeMode="CanMinimize" Background="#F0F2F5">
+        Title="USB Relay Controller (LCUS &amp; HID)" Height="450" Width="560"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanMinimize" Background="#F0F2F5"
+        Icon="app_icon.ico">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -15,7 +20,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- 1. Thanh kết nối & Quét COM -->
+        <!-- 1. Thanh kết nối & Quét thiết bị -->
         <Border Grid.Row="0" Background="White" CornerRadius="8" Padding="12" Margin="0,0,0,14"
                 BorderBrush="#E2E8F0" BorderThickness="1">
             <Grid>
@@ -25,63 +30,48 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="Cổng COM:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" Foreground="#334155"/>
-                <ComboBox Name="cboPorts" Grid.Column="1" Height="30" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
-                <Button Name="btnScan" Grid.Column="2" Content="🔍 Quét &amp; Auto Connect" Padding="12,4" Margin="0,0,6,0" 
-                        Background="#2563EB" Foreground="White" FontWeight="SemiBold" Click="btnScan_Click" Cursor="Hand"/>
-                <Button Name="btnConnect" Grid.Column="3" Content="Kết nối" Padding="14,4" 
-                        Background="#16A34A" Foreground="White" FontWeight="SemiBold" Click="btnConnect_Click" Cursor="Hand"/>
+                <TextBlock Text="Thiết bị:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" Foreground="#334155"/>
+                <ComboBox Grid.Column="1" Height="30" Margin="0,0,8,0" VerticalContentAlignment="Center"
+                          ItemsSource="{Binding Devices}"
+                          SelectedItem="{Binding SelectedDevice}"
+                          DisplayMemberPath="DisplayName"/>
+                <Button Grid.Column="2" Content="🔍 Quét &amp; Auto Connect" Padding="12,4" Margin="0,0,6,0" 
+                        Background="#2563EB" Foreground="White" FontWeight="SemiBold" Cursor="Hand"
+                        Command="{Binding ScanAndAutoConnectCommand}"/>
+                <Button Grid.Column="3" Content="{Binding ConnectButtonText}" Padding="14,4" 
+                        Background="{Binding ConnectButtonBrush}" Foreground="White" FontWeight="SemiBold" Cursor="Hand"
+                        Command="{Binding ToggleConnectCommand}"/>
             </Grid>
         </Border>
 
-        <!-- 2. Danh sách 4 Kênh Relay -->
-        <UniformGrid Grid.Row="1" Columns="2" Rows="2" Margin="-6">
-            <!-- CH1: Nguồn B+ -->
-            <Border Background="White" CornerRadius="8" Margin="6" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="CH1: NGUỒN (B+)" FontWeight="Bold" FontSize="13" Foreground="#1E293B"/>
-                    <TextBlock Name="txtStatus1" Text="○ INACTIVE (OFF)" FontSize="11" Foreground="#64748B" Margin="0,4,0,10" FontWeight="SemiBold"/>
-                    <Button Name="btnCh1" Content="BẬT NGUỒN" Height="36" Background="#475569" Foreground="White" 
-                            FontWeight="Bold" Tag="1" Click="RelayButton_Click" Cursor="Hand"/>
-                </StackPanel>
-            </Border>
+        <!-- 2. Danh sách 4 Kênh Relay (Data Binding qua ItemsControl) -->
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Channels}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Columns="2" Rows="2" Margin="-6"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Background="White" CornerRadius="8" Margin="6" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name, StringFormat='CH: {0}'}" FontWeight="Bold" FontSize="13" Foreground="#1E293B"/>
+                            <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="11" Margin="0,4,0,10" FontWeight="SemiBold"/>
+                            <Button Content="{Binding ButtonText}" Background="{Binding ButtonBrush}" Foreground="White" 
+                                    Height="36" FontWeight="Bold" Cursor="Hand"
+                                    IsEnabled="{Binding IsButtonEnabled}"
+                                    Command="{Binding ToggleCommand}"/>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
-            <!-- CH2: Boot Mode -->
-            <Border Background="White" CornerRadius="8" Margin="6" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="CH2: BOOT MODE" FontWeight="Bold" FontSize="13" Foreground="#1E293B"/>
-                    <TextBlock Name="txtStatus2" Text="○ INACTIVE (OFF)" FontSize="11" Foreground="#64748B" Margin="0,4,0,10" FontWeight="SemiBold"/>
-                    <Button Name="btnCh2" Content="BẬT BOOT" Height="36" Background="#475569" Foreground="White" 
-                            FontWeight="Bold" Tag="2" Click="RelayButton_Click" Cursor="Hand"/>
-                </StackPanel>
-            </Border>
-
-            <!-- CH3: IGN -->
-            <Border Background="White" CornerRadius="8" Margin="6" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="CH3: IGNITION" FontWeight="Bold" FontSize="13" Foreground="#1E293B"/>
-                    <TextBlock Name="txtStatus3" Text="○ INACTIVE (OFF)" FontSize="11" Foreground="#64748B" Margin="0,4,0,10" FontWeight="SemiBold"/>
-                    <Button Name="btnCh3" Content="BẬT IGN" Height="36" Background="#475569" Foreground="White" 
-                            FontWeight="Bold" Tag="3" Click="RelayButton_Click" Cursor="Hand"/>
-                </StackPanel>
-            </Border>
-
-            <!-- CH4: Dự phòng -->
-            <Border Background="White" CornerRadius="8" Margin="6" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="CH4: DỰ PHÒNG" FontWeight="Bold" FontSize="13" Foreground="#1E293B"/>
-                    <TextBlock Name="txtStatus4" Text="○ INACTIVE (OFF)" FontSize="11" Foreground="#64748B" Margin="0,4,0,10" FontWeight="SemiBold"/>
-                    <Button Name="btnCh4" Content="BẬT CH4" Height="36" Background="#475569" Foreground="White" 
-                            FontWeight="Bold" Tag="4" Click="RelayButton_Click" Cursor="Hand"/>
-                </StackPanel>
-            </Border>
-        </UniformGrid>
-
-        <!-- 3. Status Bar nền trắng sạch đẹp -->
+        <!-- 3. Status Bar nền trắng trực quan -->
         <Border Grid.Row="2" Background="White" CornerRadius="8" Padding="12,9" Margin="0,12,0,0"
                 BorderBrush="#E2E8F0" BorderThickness="1">
-            <TextBlock Name="txtSystemStatus" Text="Sẵn sàng. Bấm 'Quét &amp; Auto Connect' để tự động tìm thiết bị." 
-                       FontSize="12" Foreground="#1E293B" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{Binding StatusBrush}" 
+                       FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
         </Border>
     </Grid>
 </Window>
